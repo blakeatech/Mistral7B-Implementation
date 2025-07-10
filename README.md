@@ -49,104 +49,64 @@ lo-backend/
 The following diagram illustrates how the LeaderOracle backend processes requests:
 
 ```mermaid
-graph TD
-    subgraph "Client Applications"
+graph LR
+    subgraph "Clients"
         WEB[Web Frontend]
-        MOBILE[Mobile App]
-        API_CLIENT[API Clients]
+        API[API Clients]
     end
     
     subgraph "LeaderOracle Backend"
-        subgraph "API Layer"
-            ENDPOINT[FastAPI Endpoints]
-            AUTH[Authentication]
-        end
-        
-        subgraph "Core Services"
-            CACHE_CHECK{Cache Hit?}
-            AI_INFERENCE[AI Model Inference]
-            CACHE_STORE[Store in Cache]
-        end
-        
-        subgraph "AI Processing"
-            SINGLE[Single Text Analysis]
-            BATCH[Batch Text Processing]
-            MODEL[Leadership Analysis Model]
-        end
-        
-        subgraph "Data Layer"
-            REDIS[Redis Cache]
-            PROMPTS[Prompt Templates]
-        end
+        ENDPOINT[FastAPI API] --> AUTH[Authentication]
+        AUTH --> CACHE{Cached?}
+        CACHE -->|Yes| RETURN[Return Result]
+        CACHE -->|No| PROCESS[AI Processing]
+        PROCESS --> MODELS[AI Models]
+        MODELS --> STORE[Cache Result]
+        STORE --> RETURN
     end
     
-    subgraph "External AI Services"
-        OPENAI[OpenAI API]
-        OPENROUTER[OpenRouter API]
-        CUSTOM_MODEL[Custom PyTorch Model]
+    subgraph "AI Models"
+        CUSTOM[Custom Model]
+        OPENAI[OpenAI]
+        OPENROUTER[OpenRouter]
     end
     
-    %% Client to API flow
+    subgraph "Storage"
+        REDIS[(Redis Cache)]
+        PROMPTS[Prompt Templates]
+    end
+    
+    %% Connections
     WEB --> ENDPOINT
-    MOBILE --> ENDPOINT
-    API_CLIENT --> ENDPOINT
-    
-    %% Authentication flow
-    ENDPOINT --> AUTH
-    AUTH --> CACHE_CHECK
-    
-    %% Cache flow
-    CACHE_CHECK -->|Hit| REDIS
-    REDIS -->|Return Cached Result| ENDPOINT
-    
-    %% AI Processing flow
-    CACHE_CHECK -->|Miss| AI_INFERENCE
-    AI_INFERENCE --> SINGLE
-    AI_INFERENCE --> BATCH
-    
-    %% Model processing
-    SINGLE --> MODEL
-    BATCH --> MODEL
-    MODEL --> CUSTOM_MODEL
-    MODEL --> OPENAI
-    MODEL --> OPENROUTER
-    
-    %% Template usage
-    PROMPTS --> MODEL
-    
-    %% Cache storage
-    MODEL --> CACHE_STORE
-    CACHE_STORE --> REDIS
-    
-    %% Response flow
-    CACHE_STORE --> ENDPOINT
-    ENDPOINT --> WEB
-    ENDPOINT --> MOBILE
-    ENDPOINT --> API_CLIENT
+    API --> ENDPOINT
+    MODELS --> CUSTOM
+    MODELS --> OPENAI
+    MODELS --> OPENROUTER
+    PROMPTS --> PROCESS
+    CACHE -.-> REDIS
+    STORE --> REDIS
+    RETURN --> WEB
+    RETURN --> API
     
     %% Styling
     classDef client fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef api fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef core fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef ai fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef data fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef external fill:#f1f8e9,stroke:#689f38,stroke-width:2px
+    classDef backend fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef models fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef storage fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
     
-    class WEB,MOBILE,API_CLIENT client
-    class ENDPOINT,AUTH api
-    class CACHE_CHECK,AI_INFERENCE,CACHE_STORE core
-    class SINGLE,BATCH,MODEL ai
-    class REDIS,PROMPTS data
-    class OPENAI,OPENROUTER,CUSTOM_MODEL external
+    class WEB,API client
+    class ENDPOINT,AUTH,CACHE,PROCESS,STORE,RETURN backend
+    class CUSTOM,OPENAI,OPENROUTER models
+    class REDIS,PROMPTS storage
 ```
 
 ### How It Works
 
-1. **Client Request**: Applications send leadership analysis requests to the API
-2. **Authentication**: Each request is validated using SHA-256 hashed API keys
-3. **Cache Check**: The system first checks if a similar analysis is already cached
-4. **AI Processing**: For cache misses, the request is processed through AI models
-5. **Response Delivery**: Results are cached for future requests and returned to the client
+1. **Client Request**: Web applications and API clients send leadership analysis requests
+2. **Authentication**: Requests are validated using SHA-256 hashed API keys
+3. **Cache Check**: System checks Redis cache for existing results
+4. **AI Processing**: Cache misses trigger analysis through custom PyTorch, OpenAI, or OpenRouter models
+5. **Response**: Results are cached and returned to the client for fast future access
 
 ### Key Components
 
